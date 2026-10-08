@@ -394,8 +394,7 @@ elif [ $match == 1 ]; then
 		echo $(date "+%F > %T")": Contigs match check between FASTA and GFF3 inputs failed. FASTA input, GFF3 input, or both are empty. Please provide new files." >> $my_log_file
 		exit_code=1
 elif [ $match == 2 ]; then
-		echo $(date "+%F > %T")": Contigs match check between FASTA and GFF3 inputs failed. One or more contig names in the FASTA file are not in the GFF3 file. Please provide new files." >> $my_log_file
-		exit_code=1
+		echo $(date "+%F > %T")": Warning: one or more contig names in the FASTA file are not in the GFF3 file. Those contigs are kept; variants on them will not be assigned to genes. The execution will continue." >> $my_log_file
 elif [ $match == 3 ]; then
 		echo $(date "+%F > %T")": Contigs match check between FASTA and GFF3 inputs. Warning: some contig names in the GFF3 file are not in the FASTA file. The execution will continue. Please provide new files if considered necessary." >> $my_log_file	
 elif [ $match == 4 ]; then

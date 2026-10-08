@@ -6,7 +6,7 @@
 #
 
 
-import argparse, os, fnmatch
+import argparse, os, fnmatch, sys
 
 
 parser = argparse.ArgumentParser()
@@ -169,46 +169,56 @@ if fa_match != None and gff_match != None:
 	# If files are not empty...
 	
 	else:
-		# Retrieve the name of the contigs in the fasta file and store them in a list
+		# Retrieve the name of the contigs in the fasta file and store them in a list.
+		# Use the first header token so ">chr1 description" is contig chr1.
 		fa_match_contents = open(fa_match, 'r')
 		fa_contigs = []
+		fa_seen = set()
 		
 		for fa_line in fa_match_contents:
 			if fa_line.startswith('>'):
-				fa_fields = fa_line.split('\t')
-				fa_contigs.append(fa_fields[0][1:].lower().strip())
+				fa_id = fa_line[1:].split()[0].lower()
+				if fa_id and fa_id not in fa_seen:
+					fa_seen.add(fa_id)
+					fa_contigs.append(fa_id)
 		
 		fa_match_contents.close()
 		
-		# Retrieve the name of the contigs (unique) in the gff file and store them in a list
+		# Retrieve the name of the contigs (unique) in the gff file and store them in a list.
+		# Skip comments, blank lines, and non-feature lines so directives are not treated as contigs.
 		gff_match_contents = open(gff_match, 'r')
-		gff_contigs = []
+		gff_contigs = set()
 		
 		for gff_line in gff_match_contents:
-			gff_fields = gff_line.split('\t')
+			if not gff_line.strip() or gff_line.startswith('#'):
+				continue
+			gff_fields = gff_line.rstrip('\n').split('\t')
+			if len(gff_fields) < 3:
+				continue
 			contig_name = gff_fields[0].lower().strip()
-			if contig_name not in gff_contigs:
-				gff_contigs.append(contig_name)
+			if contig_name:
+				gff_contigs.add(contig_name)
 		
 		gff_match_contents.close()
 		
-		# Check if all the contigs in fasta file are also in gff file
-		for fa_contig in fa_contigs:
-			if fa_contig not in gff_contigs:
-				match_result = 2
+		# Contigs present in the FASTA but absent from the GFF stay in the analysis.
+		missing = [fa_contig for fa_contig in fa_contigs if fa_contig not in gff_contigs]
+		if missing:
+			match_result = 2
+			sys.stderr.write("FASTA contigs absent from GFF3 ({0}): {1}\n".format(len(missing), ", ".join(missing)))
 
-		# Check if all the contigs in fasta file are also in gff file
 		if match_result != 2:
 			for gff_contig in gff_contigs:
-				if gff_contig not in fa_contigs:
+				if gff_contig not in fa_seen:
 					match_result = 3
+					break
 	
 	print match_result
 	
 	# 0: pass
 	# 1: fa, gff, or both files are empty
-	# 2: FASTA file has contigs not present in GFF3 file. Since this is potentially very
-	#    dangerous, if exit_code=2, process-input.sh stops.
+	# 2: FASTA file has contigs not present in GFF3 file. Reported as a warning;
+	#    process-input.sh continues and those contigs are not assigned to genes.
 	# 3: GFF3 file has contigs not present in FASTA file. In this case, just warn the user
 	#	  about the presence of extra contigs in the GFF3 file. The analysis will keep going.		 	
 	
