@@ -337,79 +337,76 @@ def worker_2(variant_info, variants_info2):
 						cds_coords = feature[1], feature[2]
 						cds_list.append(cds_coords)
 
-				# Reconstruct the coding sequence of the wild type gene.
-				target_fasta_header = '>' + variant_info[1]
+				# Contig sequences were loaded once into contig_seqs before this pool.
+				seq_contig = contig_seqs.get(variant_info[1])
+				if seq_contig is not None:
+					cds_seq_list_wt = []
+					cds_seq_list_mt = []
+					for cds in cds_list:
+						cds_seq = seq_contig[cds[0]-1 : cds[1]]
 						
-				with open(contigs_source) as fp:
-					for name_contig, seq_contig in read_fasta(fp): # Create an array with the names and sequences of the contigs in the fasta input using the function 'read_fasta(fp)'
-						if name_contig.lower() == target_fasta_header.lower(): # Only work with the contig where the mutation lies
-							cds_seq_list_wt = []
-							cds_seq_list_mt = []
-							for cds in cds_list:
-								cds_seq = seq_contig[cds[0]-1 : cds[1]]
-								
-								if cds[0]-1 <= variant_info[2] and cds[1] >= variant_info[2]:
-									# Calculate the position of the mutation in the CDS sequence
-									relative_mut_pos = variant_info[2] - cds[0]
-									
-									# Replace wt-base for mut-base at mut-pos (if input is large insertions, 
-									# substitute wt-base for the symbol'-').
-									cds_seq_as_list = list(cds_seq)									
-									cds_seq_as_list[relative_mut_pos] = variant_info[4]
-									cds_seq_mut = ''.join(cds_seq_as_list)
-									
-									# Append cds wt seq to wt list and cds mut seq to mt list
-									# If mRNA is in the reverse strand, reverse complement the cds sequences
-									# when adding them to the lists 'cds_seq_list_wt' and 'cds_seq_list_mt'
-									if variant_info[8] == '+':
-										cds_seq_list_wt.append(cds_seq)
-										cds_seq_list_mt.append(cds_seq_mut)
-									if variant_info[8] == '-':
-										cds_seq_list_wt.append(reverse_complementary(cds_seq))
-										cds_seq_list_mt.append(reverse_complementary(cds_seq_mut))
-								
-								else:
-									if variant_info[8] == '+':
-										cds_seq_list_wt.append(cds_seq)
-										cds_seq_list_mt.append(cds_seq)
-									if variant_info[8] == '-':
-										cds_seq_list_wt.append(reverse_complementary(cds_seq))
-										cds_seq_list_mt.append(reverse_complementary(cds_seq))					
+						if cds[0]-1 <= variant_info[2] and cds[1] >= variant_info[2]:
+							# Calculate the position of the mutation in the CDS sequence
+							relative_mut_pos = variant_info[2] - cds[0]
+							
+							# Replace wt-base for mut-base at mut-pos (if input is large insertions, 
+							# substitute wt-base for the symbol'-').
+							cds_seq_as_list = list(cds_seq)									
+							cds_seq_as_list[relative_mut_pos] = variant_info[4]
+							cds_seq_mut = ''.join(cds_seq_as_list)
+							
+							# Append cds wt seq to wt list and cds mut seq to mt list
+							# If mRNA is in the reverse strand, reverse complement the cds sequences
+							# when adding them to the lists 'cds_seq_list_wt' and 'cds_seq_list_mt'
+							if variant_info[8] == '+':
+								cds_seq_list_wt.append(cds_seq)
+								cds_seq_list_mt.append(cds_seq_mut)
+							if variant_info[8] == '-':
+								cds_seq_list_wt.append(reverse_complementary(cds_seq))
+								cds_seq_list_mt.append(reverse_complementary(cds_seq_mut))
+						
+						else:
+							if variant_info[8] == '+':
+								cds_seq_list_wt.append(cds_seq)
+								cds_seq_list_mt.append(cds_seq)
+							if variant_info[8] == '-':
+								cds_seq_list_wt.append(reverse_complementary(cds_seq))
+								cds_seq_list_mt.append(reverse_complementary(cds_seq))					
 				
-				# Reconstruct the coding sequence of the mutant gene
-				full_cds_seq_wt = (''.join(cds_seq_list_wt)).upper()
-				full_cds_seq_mt = (''.join(cds_seq_list_mt)).upper()
+					# Reconstruct the coding sequence of the mutant gene
+					full_cds_seq_wt = (''.join(cds_seq_list_wt)).upper()
+					full_cds_seq_mt = (''.join(cds_seq_list_mt)).upper()
 					
-				if input_type == 'snp':	
-					# Translate the coding sequences of the wild type and mutant genes
-					prot_wt = dna_to_prot(full_cds_seq_wt)
-					prot_mt = dna_to_prot(full_cds_seq_mt)
+					if input_type == 'snp':	
+						# Translate the coding sequences of the wild type and mutant genes
+						prot_wt = dna_to_prot(full_cds_seq_wt)
+						prot_mt = dna_to_prot(full_cds_seq_mt)
 					
-					# Determine if protein has an amino acid change. If so, store its position and the wt and mut aas
-					aa_change = False
-					aa_position = 1
-					for aa_wt, aa_mt in zip(prot_wt, prot_mt):
-						if aa_wt != aa_mt:
-							aa_change = True
-							if aa_mt == "*": aa_mt = "STOP"
-							result_aa_wt, result_aa_mt = aa_wt, aa_mt
-							result_aa_position = aa_position								
-						aa_position += 1
+						# Determine if protein has an amino acid change. If so, store its position and the wt and mut aas
+						aa_change = False
+						aa_position = 1
+						for aa_wt, aa_mt in zip(prot_wt, prot_mt):
+							if aa_wt != aa_mt:
+								aa_change = True
+								if aa_mt == "*": aa_mt = "STOP"
+								result_aa_wt, result_aa_mt = aa_wt, aa_mt
+								result_aa_position = aa_position								
+							aa_position += 1
 					
-					if aa_change == False:
-						result_aa_wt, result_aa_mt, result_aa_position = '-', '-', 'no aa change'
+						if aa_change == False:
+							result_aa_wt, result_aa_mt, result_aa_position = '-', '-', 'no aa change'
 					
-					# Write info as a comma-separated list to the list 'variants_info2'
-					condensed_info = variant_info[0], variant_info[1], variant_info[2], variant_info[3], variant_info[4], variant_info[5], variant_info[6], variant_info[7], variant_info[8], variant_info[9], feature_hit + exonSplicingSignal, result_aa_position, result_aa_wt, result_aa_mt
-					variants_info2.append(condensed_info)
+						# Write info as a comma-separated list to the list 'variants_info2'
+						condensed_info = variant_info[0], variant_info[1], variant_info[2], variant_info[3], variant_info[4], variant_info[5], variant_info[6], variant_info[7], variant_info[8], variant_info[9], feature_hit + exonSplicingSignal, result_aa_position, result_aa_wt, result_aa_mt
+						variants_info2.append(condensed_info)
 				
-				if input_type == 'lim':
-					#Determine position of insertion in protein sequence
-					result_nt_position = int(float(full_cds_seq_mt.find('-') + 1)/3)
+					if input_type == 'lim':
+						#Determine position of insertion in protein sequence
+						result_nt_position = int(float(full_cds_seq_mt.find('-') + 1)/3)
 					
-					# Write info as a comma-separated list to the list 'variants_info2'
-					condensed_info = variant_info[0], variant_info[1], variant_info[2], variant_info[3], variant_info[4], variant_info[5], variant_info[6], variant_info[7], variant_info[8], variant_info[9], feature_hit, result_nt_position, '-', '-'
-					variants_info2.append(condensed_info)
+						# Write info as a comma-separated list to the list 'variants_info2'
+						condensed_info = variant_info[0], variant_info[1], variant_info[2], variant_info[3], variant_info[4], variant_info[5], variant_info[6], variant_info[7], variant_info[8], variant_info[9], feature_hit, result_nt_position, '-', '-'
+						variants_info2.append(condensed_info)
 			
 			else:
 				condensed_info = variant_info[0], variant_info[1], variant_info[2], variant_info[3], variant_info[4], variant_info[5], variant_info[6], variant_info[7], variant_info[8], variant_info[9], feature_hit + exonSplicingSignal, '-', '-', '-'
@@ -474,6 +471,15 @@ def worker_2(variant_info, variants_info2):
 	else:
 		# If no transcriptional unit has been hit, simply copy 'variants_info' to the new array 'variants_info2'
 		variants_info2.append(variant_info)
+
+# Load each reference contig once. The coding-sequence step looks the contig up
+# in this map. Re-opening the FASTA for every SNP makes one full read of the
+# reference per coding variant.
+contig_seqs = {}
+with open(contigs_source) as fp:
+	for name_contig, seq_contig in read_fasta(fp):
+		contig_id = name_contig[1:].split()[0].lower()
+		contig_seqs[contig_id] = seq_contig
 
 # Multithreading worker_2
 pool_size = threads  
